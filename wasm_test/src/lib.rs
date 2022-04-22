@@ -4,10 +4,6 @@ use sha2::{Sha256, Digest};
 use aes_gcm_siv::{Aes256GcmSiv, Key, Nonce}; // Or `Aes128GcmSiv`
 use aes_gcm_siv::aead::{Aead, NewAead};
 use rand::{distributions::Alphanumeric, Rng};
-use openssl::rsa::{Rsa, Padding};
-use openssl::aes::{AesKey, aes_ige};
-use openssl::symm::Mode;
-use openssl::rand::rand_bytes;
 use pbkdf2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Pbkdf2
@@ -63,10 +59,10 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
     }
 }
 #[wasm_bindgen]
-pub fn generateRandomString(size:u8)->String{
+pub fn generateRandomString(size:usize)->String{
     let s: String = rand::thread_rng()
     .sample_iter(&Alphanumeric)
-    .take(12)
+    .take(size)
     .map(char::from)
     .collect();
     return s;
@@ -79,19 +75,19 @@ pub fn crypt_aes_gcm_siv(message:String,password:String)->CryptedMessage{
     let vec: Vec<&str> = split.collect();
     //println!("{}",secret_key);
     let reduced_key=truncate(vec[4], 32);
-    let key = Key::from_slice(reduced_key.as_bytes());
+    //let key:&GenericArray<u8,32> = Key::from_slice(reduced_key.as_bytes());
 
-    let mut buf = [0; 32];
-    rand_bytes(&mut buf).unwrap();
-    let aeskey = AesKey::new_encrypt(&buf).unwrap();
+    let rand_key=format!("{}",generateRandomString(32));
+    let aeskey = Key::from_slice(rand_key.as_bytes());
     //let cle = format!("{:?}",key);
     //println!("{}",cle);
     
     //let cipher = Aes256GcmSiv::new(key);
+    
     let cipher = Aes256GcmSiv::new(aeskey);
 
-    let randString=format!("{}",generateRandomString(12));
-    let nonce = Nonce::from_slice(randString.as_bytes()); // 96-bits; unique per message
+    let rand_string=format!("{}",generateRandomString(12));
+    let nonce = Nonce::from_slice(rand_string.as_bytes()); // 96-bits; unique per message
 
     let ciphertext = cipher.encrypt(nonce, message.as_ref())
         .expect("encryption failure!");  // NOTE: handle this error to avoid panics!
@@ -100,7 +96,8 @@ pub fn crypt_aes_gcm_siv(message:String,password:String)->CryptedMessage{
     
     let crypted_message = CryptedMessage{
         cipherText: ciphertext,
-        key:reduced_key.to_string(),
+        //key:reduced_key.to_string(),
+        key:rand_key.to_string(),
         nonce: *nonce,
     } ;
     
